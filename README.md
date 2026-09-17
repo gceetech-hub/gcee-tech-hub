@@ -1,8 +1,8 @@
-# GDGoC GCEE Website
+# GCEE Tech Hub Website
 
-Official website of **Google Developer Groups on Campus (GDGoC) – Government College of Engineering, Erode (GCEE)**.
+Official website of **GCEE Tech Hub – Government College of Engineering, Erode (GCEE)**.
 
-A full-stack community website for showcasing GDGoC GCEE activities, events, registrations, announcements, and community information.
+A full-stack student technology community website for showcasing GCEE Tech Hub activities, events, registrations, announcements, workshops, projects, and community information.
 
 🌐 **Live Website:** https://gcee-tech-hub.vercel.app/
 
@@ -36,8 +36,8 @@ A full-stack community website for showcasing GDGoC GCEE activities, events, reg
 
 ### Public Website
 
-* GDGoC GCEE homepage
-* About GDGoC GCEE
+* GCEE Tech Hub homepage
+* About GCEE Tech Hub
 * Community information
 * Upcoming events
 * Past events
@@ -109,7 +109,6 @@ gcee-tech-hub/
 │   ├── events/
 │   │   ├── posters/
 │   │   └── photos/
-│   │
 │   ├── images/
 │   ├── logos/
 │   └── favicon.*
@@ -117,7 +116,6 @@ gcee-tech-hub/
 ├── src/
 │   ├── assets/
 │   │   └── images/
-│   │
 │   ├── components/
 │   │   ├── Navbar.*
 │   │   ├── Footer.*
@@ -127,28 +125,23 @@ gcee-tech-hub/
 │   │   ├── Community.*
 │   │   ├── Contact.*
 │   │   └── PageLoader.*
-│   │
 │   ├── pages/
 │   │   ├── Home.*
 │   │   ├── Events.*
 │   │   ├── EventDetails.*
 │   │   ├── Register.*
 │   │   └── Contact.*
-│   │
 │   ├── admin/
 │   │   ├── AdminLogin.*
 │   │   ├── AdminDashboard.*
 │   │   ├── Students.*
 │   │   ├── Events.*
 │   │   └── Settings.*
-│   │
 │   ├── services/
 │   │   ├── api.*
 │   │   └── email.*
-│   │
 │   ├── data/
 │   │   └── events.*
-│   │
 │   ├── App.*
 │   ├── main.*
 │   └── index.css
@@ -158,29 +151,23 @@ gcee-tech-hub/
 │   │   ├── Student.*
 │   │   ├── Event.*
 │   │   └── Registration.*
-│   │
 │   ├── routes/
 │   │   ├── auth.*
 │   │   ├── students.*
 │   │   ├── events.*
 │   │   ├── registrations.*
 │   │   └── email.*
-│   │
 │   ├── controllers/
 │   │   ├── authController.*
 │   │   ├── studentController.*
 │   │   ├── eventController.*
 │   │   └── emailController.*
-│   │
 │   ├── middleware/
 │   │   └── auth.*
-│   │
 │   ├── config/
 │   │   └── db.*
-│   │
 │   ├── utils/
 │   │   └── mailer.*
-│   │
 │   └── server.*
 │
 ├── .env
@@ -192,7 +179,7 @@ gcee-tech-hub/
 └── README.md
 ```
 
-> The exact folder names may differ depending on the implementation. Keep the README structure synchronized with the actual repository.
+> The exact folder names may differ depending on the implementation. Keep the README synchronized with the actual repository.
 
 ---
 
@@ -200,17 +187,17 @@ gcee-tech-hub/
 
 ## Requirements
 
-Install the following before running the project:
+Install the following:
 
 * Node.js 20+
 * npm
-* MongoDB Atlas account (free tier is enough) — you need its `mongodb+srv://` connection string
+* MongoDB Atlas account
 * Gmail account with an App Password, or a Resend API key
 * Git
 
 ---
 
-## 1. Clone the repository
+## 1. Clone the Repository
 
 ```bash
 git clone <your-github-repository-url>
@@ -219,49 +206,36 @@ cd gcee-tech-hub
 
 ---
 
-## 2. Install dependencies
+## 2. Install Dependencies
 
 ```bash
 npm install
 npm run install:all
 ```
 
-`install:all` installs the `backend` and `frontend` workspaces in addition to the root tooling.
-
 ---
 
-## 3. Configure environment variables
+## 3. Configure Environment Variables
 
-Create the required `.env` files and add the MongoDB and email configuration.
+Create the required `.env` files and configure MongoDB and email settings.
 
 See the [Environment Variables](#environment-variables) section.
 
 ---
 
-## 4. Start the frontend
+## 4. Start the Application
 
 ```bash
 npm run dev
 ```
 
-The Vite development server will normally run at:
+The frontend normally runs at:
 
 ```text
 http://localhost:5173
 ```
 
----
-
-## 5. Start the backend
-
-If the backend runs separately:
-
-```bash
-cd backend
-npm run dev
-```
-
-The API will normally run at a backend URL such as:
+The backend normally runs at:
 
 ```text
 http://localhost:5000
@@ -270,8 +244,6 @@ http://localhost:5000
 ---
 
 # Environment Variables
-
-Create the required environment variables.
 
 Backend (`backend/.env`):
 
@@ -288,98 +260,75 @@ ADMIN_NAME="GCEE Tech Hub Admin"
 ADMIN_EMAIL="admin@gceetechhub.in"
 ADMIN_PASSWORD="your_secure_admin_password"
 
-# Email: use Gmail App Password, or Resend
 GMAIL_USER="yourclub@gmail.com"
 GMAIL_APP_PASSWORD="your_gmail_app_password"
+
 # RESEND_API_KEY="re_..."
 ```
 
-Copy the templates to get started:
+Copy the templates:
 
 ```bash
-cp .env.example .env            # root
+cp .env.example .env
 cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env   # optional
+cp frontend/.env.example frontend/.env
 ```
 
-Notes:
+### MongoDB
 
-* `MONGODB_URI` is required. If it is missing or still a placeholder, the API
-  starts in **degraded mode**: `/api/health` reports `database: unavailable`
-  and API calls return a friendly `503` — no connection retry storm.
-* If your network DNS refuses Atlas SRV lookups (`querySrv ECONNREFUSED`), add
-  `FORCE_DNS=8.8.8.8,1.1.1.1` to `backend/.env`. Leave it unset on Vercel.
-* The frontend defaults to the relative `/api` path (Vite proxy in dev, Vercel
-  rewrite in production). Only set `VITE_API_URL` if the API is on a separate
-  origin.
+`MONGODB_URI` is required.
 
-### Important
+If MongoDB is unavailable, the API operates in degraded mode and returns a friendly `503` response for database-dependent requests.
 
-Never commit real credentials to GitHub.
+For local DNS issues with MongoDB Atlas:
 
-Add the following to `.gitignore`:
+```env
+FORCE_DNS=8.8.8.8,1.1.1.1
+```
+
+Leave `FORCE_DNS` unset on Vercel unless specifically required.
+
+### API URL
+
+The frontend defaults to:
 
 ```text
-.env
-.env.local
-.env.*.local
-node_modules/
-dist/
+/api
 ```
+
+Only configure `VITE_API_URL` when the backend is hosted on a separate origin.
 
 ---
 
 # Email Configuration
 
-The website sends email through **Gmail (Nodemailer)** or **Resend**.
+GCEE Tech Hub supports email delivery through **Gmail SMTP/Nodemailer** or **Resend**.
 
-For Gmail, use:
+### Gmail
 
 ```env
 GMAIL_USER="yourclub@gmail.com"
 GMAIL_APP_PASSWORD="your_app_password"
 ```
 
-To use Resend instead:
+### Resend
 
 ```env
 RESEND_API_KEY="re_..."
 RESEND_FROM_EMAIL="onboarding@resend.dev"
 ```
 
-## Gmail App Password
-
-The app password should be a **Google App Password**, not your normal Gmail password.
-
-General process:
-
-1. Open your Google Account.
-2. Enable 2-Step Verification.
-3. Open App Passwords.
-4. Create an application password.
-5. Copy the generated password.
-6. Add it to the server environment variables.
-
-Example:
-
-```env
-GMAIL_USER="gceetech@gmail.com"
-GMAIL_APP_PASSWORD="xxxx xxxx xxxx xxxx"
-```
-
-> Never expose email credentials in frontend code.
+Never expose email credentials in frontend code.
 
 ---
 
 # Student Registration Flow
 
-The student registration flow works through the website backend.
-
 ```text
 Student
    │
    ▼
-Open GDGoC GCEE Website
+Open GCEE Tech Hub Website
    │
    ▼
 Registration Form
@@ -397,9 +346,9 @@ Submit Registration
    ▼
 Backend API
    │
-   ├── Validate data
-   ├── Store data in MongoDB
-   └── Send email through SMTP
+   ├── Validate Data
+   ├── Store Data in MongoDB
+   └── Send Email
    │
    ▼
 Registration Successful
@@ -411,9 +360,7 @@ The backend is responsible for database operations and email delivery.
 
 # Admin Panel
 
-The admin dashboard provides administrative controls for the GDGoC GCEE website.
-
-Admin access should be protected and must not expose sensitive credentials to the frontend.
+The GCEE Tech Hub admin dashboard provides administrative controls for managing the website.
 
 ## Admin Login
 
@@ -421,9 +368,7 @@ Admin access should be protected and must not expose sensitive credentials to th
 /admin/login
 ```
 
-The admin enters the configured administrator credentials.
-
-After successful authentication:
+Authentication flow:
 
 ```text
 Admin Login
@@ -438,6 +383,8 @@ Admin Session
 Admin Dashboard
 ```
 
+Sensitive credentials must remain on the server side.
+
 ---
 
 # Admin Dashboard
@@ -451,8 +398,6 @@ The dashboard can display:
 * Recent registrations
 * Database status
 * Event statistics
-
-Example:
 
 ```text
 Admin Dashboard
@@ -472,11 +417,9 @@ Admin Dashboard
 
 # Event Management
 
-All event management is handled through the admin dashboard.
+Events can be managed through the admin dashboard.
 
-## Create Event
-
-Admin can create an event with information such as:
+Event information may include:
 
 ```text
 Event Title
@@ -490,7 +433,7 @@ Registration Link
 Poster
 ```
 
-Example event data:
+Example:
 
 ```js
 {
@@ -498,7 +441,7 @@ Example event data:
   date: "15-09-2026",
   time: "10:00 AM - 12:00 PM",
   venue: "GCEE Campus",
-  handledBy: "GDGoC GCEE",
+  handledBy: "GCEE Tech Hub",
   type: "Workshop",
   description: "A practical workshop on Git and GitHub.",
   registrationLink: "https://forms.google.com/..."
@@ -570,13 +513,11 @@ Registration Stored / Retrieved
 Admin Views Registrations
 ```
 
-The admin dashboard should display the number of registered students and available registration information.
+The admin dashboard should display registration information and the number of registered students.
 
 ---
 
 # Event Email Flow
-
-The event email system uses SMTP/Nodemailer.
 
 ```text
 Admin Dashboard
@@ -600,7 +541,7 @@ Gmail SMTP
 Students' Gmail
 ```
 
-The frontend should never directly contain the SMTP username/password.
+The frontend must never contain SMTP credentials.
 
 ---
 
@@ -634,9 +575,7 @@ Student 3  student@gmail.com  IV
 
 ## Homepage
 
-Homepage sections should be maintained inside the React components/pages.
-
-Typical sections:
+Typical sections include:
 
 ```text
 Navbar
@@ -654,9 +593,7 @@ Footer
 
 ## Navbar
 
-Update navigation links inside the Navbar component.
-
-Example:
+Typical navigation:
 
 ```text
 Home
@@ -670,9 +607,7 @@ Contact
 
 ## Events
 
-Add or update event information through the event management system or the project's event data source.
-
-Recommended fields:
+Recommended event fields:
 
 ```text
 Title
@@ -690,7 +625,7 @@ Photos
 
 ## Event Posters
 
-Store event posters in:
+Store posters in:
 
 ```text
 public/events/posters/
@@ -702,13 +637,11 @@ Example:
 public/events/posters/git-workshop.jpg
 ```
 
-Then reference the image from the event.
-
 ---
 
 ## Event Photos
 
-After an event is completed, add event photos to:
+Store event photos in:
 
 ```text
 public/events/photos/
@@ -725,39 +658,33 @@ public/events/photos/git-workshop-02.jpg
 
 # Deployment
 
-The frontend is deployed on Vercel.
+The website is deployed on Vercel.
 
-Live website:
+🌐 **Production Website:**
 
 https://gcee-tech-hub.vercel.app/
 
----
-
-## Build Before Deployment
-
-Always test the production build locally:
+Before deployment:
 
 ```bash
 npm run build
 ```
 
-If the build succeeds:
+Then:
 
 ```bash
 git add .
-git commit -m "Update website"
+git commit -m "Update GCEE Tech Hub website"
 git push
 ```
 
-Vercel can then automatically deploy the latest commit from the configured branch.
+Vercel can automatically deploy the latest commit from the configured branch.
 
 ---
 
 # Vercel Environment Variables
 
-Production environment variables must be configured in Vercel.
-
-Add:
+Configure the following in Vercel:
 
 ```text
 MONGODB_URI
@@ -772,20 +699,17 @@ GMAIL_APP_PASSWORD
 PUBLIC_APP_URL
 ```
 
-`MONGODB_URI` is required in production too — without it the deployed API runs
-in degraded mode and every `/api` call returns `503`.
+`MONGODB_URI` must also be configured in the Vercel production environment.
 
-Do not put database or email credentials inside frontend environment variables that are exposed to the browser.
+Never place database passwords, SMTP credentials, or private API keys in publicly exposed frontend variables.
 
 ---
 
-# Important Deployment Architecture
-
-If the frontend and backend are deployed separately:
+# Deployment Architecture
 
 ```text
                  ┌─────────────────────┐
-                 │   GDGoC GCEE User   │
+                 │ GCEE Tech Hub User  │
                  └──────────┬──────────┘
                             │
                             ▼
@@ -806,13 +730,11 @@ If the frontend and backend are deployed separately:
                  └──────────┘  └────────────┘
 ```
 
-This keeps database credentials and SMTP credentials on the server side.
-
 ---
 
 # Design System
 
-The website uses a modern developer-community visual style with a clean, responsive interface.
+GCEE Tech Hub uses a modern developer-community visual style with a clean and responsive interface.
 
 ## Design Principles
 
@@ -829,7 +751,7 @@ The website uses a modern developer-community visual style with a clean, respons
 
 # Fonts
 
-Recommended font usage:
+Recommended:
 
 ```text
 Primary: Inter
@@ -840,7 +762,7 @@ Code / Technical: JetBrains Mono
 
 # Animations
 
-GSAP is used for:
+GSAP can be used for:
 
 * Page loading
 * Hero animations
@@ -849,7 +771,7 @@ GSAP is used for:
 * Section transitions
 * Interactive UI elements
 
-Avoid adding excessive animations that negatively affect page performance.
+Avoid excessive animations that negatively affect performance.
 
 ---
 
@@ -857,29 +779,23 @@ Avoid adding excessive animations that negatively affect page performance.
 
 ## New Homepage Section
 
-1. Create a new React component.
-
-Example:
+Create a component:
 
 ```text
 src/components/YourSection.jsx
 ```
 
-2. Add the section to the homepage.
-
-3. Give the section a unique ID:
+Add it to the homepage and give it a unique ID:
 
 ```html
 <section id="your-section">
 ```
 
-4. Add the navigation link if required.
+Add a navigation link if required.
 
 ---
 
-# New Public Page
-
-Create a page inside the project's pages/routes structure.
+## New Public Page
 
 Example:
 
@@ -887,9 +803,7 @@ Example:
 src/pages/Community.jsx
 ```
 
-Then configure the route using the application's routing system.
-
-Example:
+Configure the route:
 
 ```text
 /community
@@ -897,11 +811,11 @@ Example:
 
 ---
 
-# New Admin Page
+## New Admin Page
 
-Create a new admin page and protect it using the existing admin authentication middleware/route protection.
+Create the admin page and protect it with the existing authentication system.
 
-Example:
+Examples:
 
 ```text
 /admin/events
@@ -913,7 +827,7 @@ Example:
 
 # API Structure
 
-Typical API structure:
+Typical API endpoints:
 
 ```text
 /api/auth
@@ -926,18 +840,18 @@ Typical API structure:
 Example:
 
 ```text
-POST /api/events
-GET  /api/events
-PUT  /api/events/:id
+POST   /api/events
+GET    /api/events
+PUT    /api/events/:id
 DELETE /api/events/:id
 
-GET  /api/students
+GET    /api/students
 DELETE /api/students/:id
 
-GET  /api/registrations
-POST /api/registrations
+GET    /api/registrations
+POST   /api/registrations
 
-POST /api/email/send-event
+POST   /api/email/send-event
 ```
 
 ---
@@ -946,14 +860,12 @@ POST /api/email/send-event
 
 ## Frontend Does Not Start
 
-Run:
-
 ```bash
 npm install
 npm run dev
 ```
 
-Check that Node.js is installed:
+Check:
 
 ```bash
 node -v
@@ -978,53 +890,60 @@ MongoDB Atlas Network Access
 
 ## MongoDB Connection Error
 
-The API never crashes when MongoDB is unreachable. Instead, the homepage and
-public pages keep rendering and database-backed calls return a friendly `503`
-("Database service temporarily unavailable"). To diagnose:
+Check the health endpoint:
 
-1. Check the API health endpoint:
+```text
+GET /api/health
+```
 
-   ```text
-   GET /api/health
-   ```
+Healthy response:
 
-   A healthy deployment returns `"database": "connected"`. When it returns
-   `"database": "unavailable"` the API cannot reach MongoDB.
+```json
+{
+  "database": "connected"
+}
+```
 
-2. Confirm a real (non-placeholder) URI is set:
+If the response is:
 
-   ```env
-   MONGODB_URI="mongodb+srv://..."
-   ```
+```json
+{
+  "database": "unavailable"
+}
+```
 
-   Templates such as `<username>` or `cluster0.xxxxx.mongodb.net` are rejected
-   on purpose and treated as "not configured".
+the API cannot currently reach MongoDB.
 
-3. In MongoDB Atlas verify:
-   * **Database Access** — the database user's username and password.
-   * **Network Access** — the deployment must be allowed. Vercel's serverless
-     functions use dynamic IPs, so either allow `0.0.0.0/0` or configure a
-     stable egress/VPC option.
-   * **Database Cluster** — the cluster is running (not paused).
+Check:
 
-4. `querySrv ECONNREFUSED` / `ENOTFOUND` means DNS could not resolve the Atlas
-   SRV record. Add `FORCE_DNS=8.8.8.8,1.1.1.1` locally, or fix the network's DNS.
+1. `MONGODB_URI`
+2. MongoDB Atlas Database Access
+3. MongoDB Atlas Network Access
+4. MongoDB cluster status
+5. DNS configuration
+6. Vercel environment variables
 
-5. Ensure `MONGODB_URI` is set in the **Vercel dashboard** as well (not only in
-   `backend/.env`, which is git-ignored), then redeploy.
+For local DNS issues:
+
+```env
+FORCE_DNS=8.8.8.8,1.1.1.1
+```
 
 ---
 
 ## Email Not Sending
 
-Check the backend email configuration:
+Check:
 
 ```text
 GMAIL_USER
 GMAIL_APP_PASSWORD
-# or
+```
+
+or:
+
+```text
 RESEND_API_KEY
-SITE_EMAIL
 ```
 
 For Gmail:
@@ -1034,26 +953,19 @@ GMAIL_USER="yourclub@gmail.com"
 GMAIL_APP_PASSWORD="your_16_character_app_password"
 ```
 
-Make sure the password is a **Google App Password**.
-
-Do not use the normal Gmail account password.
-
-The public diagnostic endpoint `GET /api/email-status` reports which provider is
-configured without exposing any secrets.
+Use a Google App Password instead of the normal Gmail password.
 
 ---
 
 ## CORS Error
 
-If frontend and backend are deployed separately, make sure the backend allows the frontend origin.
-
-Example:
+If frontend and backend are deployed separately, allow the frontend origin:
 
 ```text
 https://gcee-tech-hub.vercel.app
 ```
 
-Do not use `*` unnecessarily when authentication or credentials are involved.
+Avoid using `*` unnecessarily when authentication or credentials are involved.
 
 ---
 
@@ -1063,9 +975,9 @@ Check:
 
 * Frontend routes
 * Backend API URL
-* Vercel routing configuration
+* Vercel routing
 * React Router configuration
-* API deployment status
+* API deployment
 * Environment variables
 
 ---
@@ -1081,8 +993,6 @@ API endpoint
 Frontend API URL
 ```
 
-Make sure the event exists in MongoDB before requesting its details.
-
 ---
 
 ## Build Failure
@@ -1090,19 +1000,11 @@ Make sure the event exists in MongoDB before requesting its details.
 Run:
 
 ```bash
-npm run build
-```
-
-Then inspect the first actual error.
-
-Also check:
-
-```bash
 npm install
 npm run build
 ```
 
-Avoid ignoring TypeScript/ESLint/build errors before deployment.
+Fix the first actual build error before deploying.
 
 ---
 
@@ -1148,7 +1050,7 @@ PNG
 
 # Contributing
 
-Contributions are welcome.
+Contributions to GCEE Tech Hub are welcome.
 
 Before submitting changes:
 
@@ -1261,8 +1163,8 @@ Past Event
 
 ```text
 ┌─────────────────────────────────────────┐
-│              GDGoC GCEE                  │
-│              Website                    │
+│             GCEE Tech Hub               │
+│               Website                   │
 └───────────────────┬─────────────────────┘
                     │
                     ▼
@@ -1288,7 +1190,7 @@ Past Event
 
 # License
 
-This project is maintained for the **GDGoC GCEE community at Government College of Engineering, Erode**.
+This project is maintained for the **GCEE Tech Hub community at Government College of Engineering, Erode**.
 
 Refer to the repository license file for the applicable licensing terms.
 
@@ -1300,17 +1202,26 @@ For website bugs, feature requests, improvements, or documentation changes:
 
 * Open a GitHub issue.
 * Submit a pull request for code improvements.
-* Contact the GDGoC GCEE organizing team through the official community channels.
+* Contact the GCEE Tech Hub organizing team through the official community channels.
 
 ---
 
-## GDGoC GCEE
+# GCEE Tech Hub
 
-**Google Developer Groups on Campus – Government College of Engineering, Erode**
+**GCEE Tech Hub – Government College of Engineering, Erode**
 
-🌐 Live Website: https://gcee-tech-hub.vercel.app/
+🌐 **Live Website:** https://gcee-tech-hub.vercel.app/
 
-Built for the student developer community at **Government College of Engineering, Erode**.
-# gcee-tech-hub
-# gcee-tech-hub
-# gcee-tech-hubs-
+Built for the student technology community at **Government College of Engineering, Erode**.
+
+---
+
+## Repository
+
+```text
+Repository Name: gcee-tech-hub
+Organization: gceetech-hub
+Project: GCEE Tech Hub
+```
+
+The repository and website should consistently use the **GCEE Tech Hub** branding across the README, UI, page titles, metadata, emails, admin dashboard, event content, footer, and deployment configuration.
