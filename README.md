@@ -200,8 +200,8 @@ Install the following:
 ## 1. Clone the Repository
 
 ```bash
-git clone <your-github-repository-url>
-cd gcee-tech-hub
+git clone https://github.com/gceetech-hub/gcee-tech-hubs-.git
+cd gcee-tech-hubs-
 ```
 
 ---
@@ -1219,8 +1219,9 @@ Built for the student technology community at **Government College of Engineerin
 ## Repository
 
 ```text
-Repository Name: gcee-tech-hub
+Repository Name: gcee-tech-hubs-
 Organization: gceetech-hub
+Repository URL: https://github.com/gceetech-hub/gcee-tech-hubs-
 Project: GCEE Tech Hub
 ```
 

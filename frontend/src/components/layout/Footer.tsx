@@ -41,7 +41,7 @@ export function Footer() {
           </p>
           <div className="mt-5 flex gap-3">
             {[
-              { icon: GithubIcon, href: 'https://github.com/gceetech-hub/gcee-tech-hub', label: 'GitHub' },
+              { icon: GithubIcon, href: 'https://github.com/gceetech-hub/gcee-tech-hubs-', label: 'GitHub' },
               { icon: Mail, href: `mailto:${SITE_EMAIL}`, label: 'Email us' },
             ].map(({ icon: Icon, href, label }, i) => (
               <a
