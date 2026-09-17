@@ -15,7 +15,7 @@ A full-stack community website for showcasing GDGoC GCEE activities, events, reg
 * [Project Structure](#project-structure)
 * [Running Locally](#running-locally)
 * [Environment Variables](#environment-variables)
-* [Email / SMTP Configuration](#email--smtp-configuration)
+* [Email Configuration](#email-configuration)
 * [Student Registration Flow](#student-registration-flow)
 * [Admin Panel](#admin-panel)
 * [Event Management](#event-management)
@@ -202,10 +202,10 @@ gcee-tech-hub/
 
 Install the following before running the project:
 
-* Node.js 18+
+* Node.js 20+
 * npm
-* MongoDB Atlas account or local MongoDB
-* Gmail account with SMTP/App Password
+* MongoDB Atlas account (free tier is enough) — you need its `mongodb+srv://` connection string
+* Gmail account with an App Password, or a Resend API key
 * Git
 
 ---
@@ -223,21 +223,16 @@ cd gcee-tech-hub
 
 ```bash
 npm install
+npm run install:all
 ```
 
-If the backend has a separate package:
-
-```bash
-cd backend
-npm install
-cd ..
-```
+`install:all` installs the `backend` and `frontend` workspaces in addition to the root tooling.
 
 ---
 
 ## 3. Configure environment variables
 
-Create the required `.env` files and add the MongoDB and SMTP configuration.
+Create the required `.env` files and add the MongoDB and email configuration.
 
 See the [Environment Variables](#environment-variables) section.
 
@@ -278,26 +273,45 @@ http://localhost:5000
 
 Create the required environment variables.
 
-Example:
+Backend (`backend/.env`):
 
 ```env
-MONGODB_URI="mongodb+srv://<username>:<password>@<cluster>.mongodb.net/<database>"
+MONGODB_URI="mongodb+srv://<username>:<password>@<cluster>.mongodb.net/<database>?retryWrites=true&w=majority"
+
+JWT_SECRET="a_long_random_secret"
+JWT_EXPIRES_IN="30d"
 
 PORT=5000
+NODE_ENV=development
 
-CLIENT_URL="http://localhost:5173"
-
+ADMIN_NAME="GCEE Tech Hub Admin"
+ADMIN_EMAIL="admin@gceetechhub.in"
 ADMIN_PASSWORD="your_secure_admin_password"
 
-SMTP_HOST="smtp.gmail.com"
-SMTP_PORT=587
-SMTP_SECURE=false
-
-SMTP_USER="yourclub@gmail.com"
-SMTP_PASSWORD="your_gmail_app_password"
-
-SMTP_FROM="GDGoC GCEE <yourclub@gmail.com>"
+# Email: use Gmail App Password, or Resend
+GMAIL_USER="yourclub@gmail.com"
+GMAIL_APP_PASSWORD="your_gmail_app_password"
+# RESEND_API_KEY="re_..."
 ```
+
+Copy the templates to get started:
+
+```bash
+cp .env.example .env            # root
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env   # optional
+```
+
+Notes:
+
+* `MONGODB_URI` is required. If it is missing or still a placeholder, the API
+  starts in **degraded mode**: `/api/health` reports `database: unavailable`
+  and API calls return a friendly `503` — no connection retry storm.
+* If your network DNS refuses Atlas SRV lookups (`querySrv ECONNREFUSED`), add
+  `FORCE_DNS=8.8.8.8,1.1.1.1` to `backend/.env`. Leave it unset on Vercel.
+* The frontend defaults to the relative `/api` path (Vite proxy in dev, Vercel
+  rewrite in production). Only set `VITE_API_URL` if the API is on a separate
+  origin.
 
 ### Important
 
@@ -315,23 +329,27 @@ dist/
 
 ---
 
-# Email / SMTP Configuration
+# Email Configuration
 
-The website uses **Nodemailer with SMTP** for email delivery.
+The website sends email through **Gmail (Nodemailer)** or **Resend**.
 
-For Gmail SMTP, use:
+For Gmail, use:
 
 ```env
-SMTP_HOST="smtp.gmail.com"
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER="yourclub@gmail.com"
-SMTP_PASSWORD="your_app_password"
+GMAIL_USER="yourclub@gmail.com"
+GMAIL_APP_PASSWORD="your_app_password"
+```
+
+To use Resend instead:
+
+```env
+RESEND_API_KEY="re_..."
+RESEND_FROM_EMAIL="onboarding@resend.dev"
 ```
 
 ## Gmail App Password
 
-The SMTP password should be a **Google App Password**, not your normal Gmail password.
+The app password should be a **Google App Password**, not your normal Gmail password.
 
 General process:
 
@@ -345,11 +363,11 @@ General process:
 Example:
 
 ```env
-SMTP_USER="gceetech@gmail.com"
-SMTP_PASSWORD="xxxx xxxx xxxx xxxx"
+GMAIL_USER="gceetech@gmail.com"
+GMAIL_APP_PASSWORD="xxxx xxxx xxxx xxxx"
 ```
 
-> Never expose the SMTP password in frontend code.
+> Never expose email credentials in frontend code.
 
 ---
 
@@ -743,18 +761,21 @@ Add:
 
 ```text
 MONGODB_URI
-PORT
-CLIENT_URL
+JWT_SECRET
+JWT_EXPIRES_IN
+ADMIN_NAME
+ADMIN_EMAIL
 ADMIN_PASSWORD
-SMTP_HOST
-SMTP_PORT
-SMTP_SECURE
-SMTP_USER
-SMTP_PASSWORD
-SMTP_FROM
+GMAIL_USER
+GMAIL_APP_PASSWORD
+# or RESEND_API_KEY
+PUBLIC_APP_URL
 ```
 
-Do not put SMTP credentials inside frontend environment variables that are exposed to the browser.
+`MONGODB_URI` is required in production too — without it the deployed API runs
+in degraded mode and every `/api` call returns `503`.
+
+Do not put database or email credentials inside frontend environment variables that are exposed to the browser.
 
 ---
 
@@ -957,47 +978,68 @@ MongoDB Atlas Network Access
 
 ## MongoDB Connection Error
 
-Verify:
+The API never crashes when MongoDB is unreachable. Instead, the homepage and
+public pages keep rendering and database-backed calls return a friendly `503`
+("Database service temporarily unavailable"). To diagnose:
 
-```env
-MONGODB_URI="mongodb+srv://..."
-```
+1. Check the API health endpoint:
 
-Also check MongoDB Atlas:
+   ```text
+   GET /api/health
+   ```
 
-```text
-Database Access
-Network Access
-Database Cluster
-```
+   A healthy deployment returns `"database": "connected"`. When it returns
+   `"database": "unavailable"` the API cannot reach MongoDB.
 
-Make sure the deployment environment is allowed to connect.
+2. Confirm a real (non-placeholder) URI is set:
+
+   ```env
+   MONGODB_URI="mongodb+srv://..."
+   ```
+
+   Templates such as `<username>` or `cluster0.xxxxx.mongodb.net` are rejected
+   on purpose and treated as "not configured".
+
+3. In MongoDB Atlas verify:
+   * **Database Access** — the database user's username and password.
+   * **Network Access** — the deployment must be allowed. Vercel's serverless
+     functions use dynamic IPs, so either allow `0.0.0.0/0` or configure a
+     stable egress/VPC option.
+   * **Database Cluster** — the cluster is running (not paused).
+
+4. `querySrv ECONNREFUSED` / `ENOTFOUND` means DNS could not resolve the Atlas
+   SRV record. Add `FORCE_DNS=8.8.8.8,1.1.1.1` locally, or fix the network's DNS.
+
+5. Ensure `MONGODB_URI` is set in the **Vercel dashboard** as well (not only in
+   `backend/.env`, which is git-ignored), then redeploy.
 
 ---
 
-## SMTP Email Not Sending
+## Email Not Sending
 
-Check:
+Check the backend email configuration:
 
 ```text
-SMTP_HOST
-SMTP_PORT
-SMTP_USER
-SMTP_PASSWORD
-SMTP_SECURE
+GMAIL_USER
+GMAIL_APP_PASSWORD
+# or
+RESEND_API_KEY
+SITE_EMAIL
 ```
 
 For Gmail:
 
 ```env
-SMTP_HOST="smtp.gmail.com"
-SMTP_PORT=587
-SMTP_SECURE=false
+GMAIL_USER="yourclub@gmail.com"
+GMAIL_APP_PASSWORD="your_16_character_app_password"
 ```
 
-Make sure the SMTP password is a **Google App Password**.
+Make sure the password is a **Google App Password**.
 
 Do not use the normal Gmail account password.
+
+The public diagnostic endpoint `GET /api/email-status` reports which provider is
+configured without exposing any secrets.
 
 ---
 
