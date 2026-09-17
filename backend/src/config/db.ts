@@ -33,7 +33,7 @@ global.mongooseCache = cached;
 const DB_UNAVAILABLE_MESSAGE =
   'Database service temporarily unavailable. Please try again later.';
 const NOT_CONFIGURED_MESSAGE =
-  'MONGODB_URI is not configured. Set backend/.env MONGODB_URI to your real MongoDB Atlas connection string.';
+  'MONGODB_URI is not configured. Set backend/.env MONGODB_URI to your MongoDB connection string.';
 
 const RETRY_BASE_MS = 5_000;
 const RETRY_MAX_MS = 60_000;
@@ -207,7 +207,7 @@ export function connectDB(): Promise<typeof mongoose> {
     return Promise.reject(err);
   }
 
-  console.log('[DB] Connecting to MongoDB Atlas...');
+  console.log('[DB] Connecting to MongoDB...');
 
   inFlight = mongoose
     .connect(uri, CONNECT_OPTS)

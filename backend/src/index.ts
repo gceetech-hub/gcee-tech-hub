@@ -10,7 +10,7 @@ async function bootstrap(): Promise<void> {
   if (!isMongoUriConfigured()) {
     console.error(
       '[Server] MONGODB_URI is missing or still set to a placeholder. ' +
-        'Set backend/.env MONGODB_URI to your real MongoDB Atlas connection string.'
+        'Set backend/.env MONGODB_URI to your MongoDB connection string.'
     );
   } else {
     // 2. Connect (single attempt, cached) and 3. seed the admin, in order.
