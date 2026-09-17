@@ -82,9 +82,10 @@ function looksInternal(message: string): boolean {
 /** True when the request failed because the database is unreachable. */
 export function isDatabaseUnavailable(err: unknown): boolean {
   if (!axios.isAxiosError(err)) return false;
-  const status = err.response?.status;
   const msg = String((err.response?.data as ApiError | undefined)?.message || err.message || '');
-  return status === 503 || /database (service temporarily )?unavailable|database connection unavailable/i.test(msg);
+  // A 503 can also mean "email provider not configured" — only treat responses
+  // that actually mention the database as a database outage.
+  return /database (service temporarily )?unavailable|database connection unavailable/i.test(msg);
 }
 
 export function getErrorMessage(err: unknown): string {

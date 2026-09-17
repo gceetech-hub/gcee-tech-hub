@@ -6,7 +6,7 @@ import { env } from '../config/env';
 import { signToken } from '../utils/jwt';
 import type { AuthRequest } from '../middleware/auth';
 import { connectDB, isDbConnectionError } from '../config/db';
-import { sendOTPEmail, sendWelcomeEmail } from '../services/emailService';
+import { sendOTPEmail, sendWelcomeEmail, isEmailServiceAvailable } from '../services/emailService';
 
 const COOKIE_OPTS = {
   httpOnly: true,
@@ -137,7 +137,8 @@ export async function register(req: AuthRequest, res: Response) {
 
     if (!sendResult.success) {
       console.error(`[auth] Verification email delivery failed for ${cleanEmail}:`, sendResult.error);
-      res.status(500).json({
+      const status = sendResult.code === 'NOT_CONFIGURED' ? 503 : 502;
+      res.status(status).json({
         success: false,
         message: sendResult.error || 'Unable to send OTP. Please check your email address and try again.',
       });
@@ -263,7 +264,8 @@ export async function sendOtp(req: AuthRequest, res: Response) {
 
     if (!sendResult.success) {
       console.error(`[auth] Resend OTP email failed for ${cleanEmail}:`, sendResult.error);
-      res.status(500).json({
+      const status = sendResult.code === 'NOT_CONFIGURED' ? 503 : 502;
+      res.status(status).json({
         success: false,
         message: sendResult.error || 'Unable to send OTP. Please try again.',
       });
@@ -451,7 +453,20 @@ export async function login(req: AuthRequest, res: Response) {
     }
 
     if (!student.isVerified) {
-      // Generate and send a fresh OTP immediately
+      // The account exists but is not verified: send a fresh OTP and ask the
+      // client to show the verification step (never silently claim success).
+      if (!isEmailServiceAvailable()) {
+        console.error('[auth] Login blocked for unverified account: email service is not configured.');
+        res.status(503).json({
+          success: false,
+          message:
+            'Email service is not configured on the server, so a verification OTP cannot be sent. Please contact the administrator.',
+          requiresVerification: true,
+          email: student.email,
+        });
+        return;
+      }
+
       const otp = generateSecureOtp();
       student.otp = hashOtp(otp);
       student.otpExpiresAt = new Date(Date.now() + OTP_EXPIRATION_MS);
@@ -459,13 +474,22 @@ export async function login(req: AuthRequest, res: Response) {
       student.otpLastSentAt = new Date();
       await student.save();
 
-      sendOTPEmail({
+      const sendResult = await sendOTPEmail({
         to: student.email,
         studentName: student.name,
         otp,
-      }).catch((err) => {
-        console.error('[auth] Login unverified OTP send error:', err.message);
       });
+
+      if (!sendResult.success) {
+        console.error('[auth] Login unverified OTP send error:', sendResult.error);
+        res.status(sendResult.code === 'NOT_CONFIGURED' ? 503 : 502).json({
+          success: false,
+          message: sendResult.error || 'Unable to send your verification OTP right now. Please try again.',
+          requiresVerification: true,
+          email: student.email,
+        });
+        return;
+      }
 
       res.status(403).json({
         success: false,

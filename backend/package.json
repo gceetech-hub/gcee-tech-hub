@@ -5,7 +5,7 @@
   "description": "GCEE Tech Hub community platform — Express + MongoDB API with JWT auth and attendance.",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch --include .env src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",

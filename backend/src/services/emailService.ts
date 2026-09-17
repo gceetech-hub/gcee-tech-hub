@@ -62,6 +62,7 @@ function htmlToText(html: string): string {
 // ── 1. Nodemailer + Gmail SMTP (normal website emails) ───────────────
 
 let gmailTransporter: Transporter | null = null;
+let transporterSignature = '';
 
 export function getGmailCredentials(): { user: string; appPassword: string } {
   const user = (process.env.GMAIL_USER || env.gmail.user || '').trim().toLowerCase();
@@ -74,20 +75,51 @@ export function isGmailConfigured(): boolean {
   return Boolean(user && appPassword);
 }
 
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  secure: boolean;
+}
+
+/**
+ * SMTP endpoint used by the Nodemailer transporter.
+ *
+ * Defaults to Gmail so the existing architecture is preserved. The optional
+ * `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` overrides allow pointing at another
+ * provider (or a local test server) without any code change.
+ */
+export function getSmtpConfig(): SmtpConfig {
+  const host = (process.env.SMTP_HOST || 'smtp.gmail.com').trim() || 'smtp.gmail.com';
+  const rawPort = parseInt((process.env.SMTP_PORT || '465').trim(), 10);
+  const port = Number.isFinite(rawPort) && rawPort > 0 ? rawPort : 465;
+  const secureEnv = (process.env.SMTP_SECURE || '').trim().toLowerCase();
+  const secure = secureEnv ? secureEnv === 'true' : port === 465;
+  return { host, port, secure };
+}
+
 /** From header used for all normal website emails (the club's Gmail). */
 export function getGmailFromAddress(): string {
   const { user } = getGmailCredentials();
   return `${CLUB.name} <${user || WEBSITE_GMAIL_ADDRESS}>`;
 }
 
+/**
+ * Build (and cache) the Nodemailer transporter. Returns null when the required
+ * credentials are absent, so a transporter is ONLY ever created when both
+ * `GMAIL_USER` and `GMAIL_APP_PASSWORD` exist.
+ */
 function getGmailTransporter(): Transporter | null {
   const { user, appPassword } = getGmailCredentials();
   if (!user || !appPassword) return null;
 
-  return nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
+  const { host, port, secure } = getSmtpConfig();
+  const signature = `${host}|${port}|${secure}|${user}|${appPassword.length}`;
+  if (gmailTransporter && transporterSignature === signature) return gmailTransporter;
+
+  gmailTransporter = nodemailer.createTransport({
+    host,
+    port,
+    secure,
     auth: {
       user,
       pass: appPassword,
@@ -96,6 +128,29 @@ function getGmailTransporter(): Transporter | null {
     greetingTimeout: 10000,
     socketTimeout: 15000,
   });
+  transporterSignature = signature;
+  return gmailTransporter;
+}
+
+/** True when at least one email provider (Gmail SMTP or Resend) is configured. */
+export function isEmailServiceAvailable(): boolean {
+  return isGmailConfigured() || isResendTransportConfigured();
+}
+
+/**
+ * Secret-free description of the active email provider, for startup logs and
+ * diagnostics. Never includes the password / API key.
+ */
+export function describeEmailConfig(): string {
+  const gmail = isGmailConfigured();
+  const resend = isResendTransportConfigured();
+  if (resend && gmail) return 'Resend (Gmail SMTP fallback available)';
+  if (resend) return 'Resend';
+  if (gmail) {
+    const { host, port } = getSmtpConfig();
+    return `Gmail SMTP (${host}:${port})`;
+  }
+  return 'not configured - set GMAIL_APP_PASSWORD (Gmail App Password) or RESEND_API_KEY';
 }
 
 export interface GmailMailOptions {
@@ -107,11 +162,20 @@ export interface GmailMailOptions {
   attachments?: Array<{ filename: string; content: Buffer | string }>;
 }
 
+export type EmailErrorCode =
+  | 'NOT_CONFIGURED'
+  | 'INVALID_RECIPIENT'
+  | 'INVALID_SUBJECT'
+  | 'AUTH'
+  | 'SEND_FAILED';
+
 export interface EmailSendResult {
   success: boolean;
   id?: string;
   /** Safe, user-facing error message (never contains credentials). */
   error?: string;
+  /** Machine-readable failure reason used to pick the right HTTP status. */
+  code?: EmailErrorCode;
 }
 
 /** Legacy-compatible aliases. */
@@ -133,18 +197,23 @@ export const isEmailConfigured = isGmailConfigured;
 export async function sendGmailEmail(opts: GmailMailOptions): Promise<EmailSendResult> {
   const cleanTo = (opts.to || '').trim().toLowerCase();
   if (!cleanTo || !isValidEmail(cleanTo)) {
-    return { success: false, error: 'Invalid recipient email address format.' };
+    return { success: false, error: 'Invalid recipient email address format.', code: 'INVALID_RECIPIENT' };
   }
 
   if (!isGmailConfigured()) {
     console.error('[emailService] Gmail email service not configured. Missing GMAIL_USER or GMAIL_APP_PASSWORD environment variables.');
-    return { success: false, error: 'Email service is not configured on the server. Please verify GMAIL_USER and GMAIL_APP_PASSWORD.' };
+    return {
+      success: false,
+      error:
+        'Email service is not configured on the server. Set GMAIL_USER and GMAIL_APP_PASSWORD (or RESEND_API_KEY), then restart the server.',
+      code: 'NOT_CONFIGURED',
+    };
   }
 
   // Header-injection protection on subject and envelope fields.
   const safeSubject = sanitizeHeaderValue(opts.subject).slice(0, 998);
   if (!safeSubject) {
-    return { success: false, error: 'Invalid email subject.' };
+    return { success: false, error: 'Invalid email subject.', code: 'INVALID_SUBJECT' };
   }
 
   const transporter = getGmailTransporter()!;
@@ -172,7 +241,7 @@ export async function sendGmailEmail(opts: GmailMailOptions): Promise<EmailSendR
     const acceptedList = Array.isArray(info.accepted) ? info.accepted.map((a: any) => String(a).toLowerCase()) : [];
     if (acceptedList.length > 0 && !acceptedList.includes(cleanTo.toLowerCase())) {
       console.error('[emailService] Gmail SMTP rejected recipient:', cleanTo);
-      return { success: false, error: 'Gmail SMTP did not accept the recipient address.' };
+      return { success: false, error: 'Gmail SMTP did not accept the recipient address.', code: 'SEND_FAILED' };
     }
 
     return { success: true, id: info.messageId };
@@ -184,11 +253,11 @@ export async function sendGmailEmail(opts: GmailMailOptions): Promise<EmailSendR
       command: err?.command,
       response: err?.response,
     });
-    const safeError =
-      err?.code === 'EAUTH'
-        ? 'Gmail SMTP authentication failed. Please check GMAIL_USER and GMAIL_APP_PASSWORD.'
-        : 'The email could not be sent right now. Please try again in a moment.';
-    return { success: false, error: safeError };
+    const authFailure = err?.code === 'EAUTH';
+    const safeError = authFailure
+      ? 'Gmail SMTP authentication failed. Please check GMAIL_USER and GMAIL_APP_PASSWORD.'
+      : 'The email could not be sent right now. Please try again in a moment.';
+    return { success: false, error: safeError, code: authFailure ? 'AUTH' : 'SEND_FAILED' };
   }
 }
 
@@ -251,7 +320,11 @@ export async function sendWebsiteEmail(opts: GmailMailOptions): Promise<EmailSen
       console.warn('[emailService] Resend send failed — falling back to Gmail SMTP:', result.error);
     }
   } else if (forced === 'resend') {
-    return { success: false, error: 'RESEND_API_KEY / RESEND_FROM_EMAIL are not configured on the server.' };
+    return {
+      success: false,
+      error: 'RESEND_API_KEY / RESEND_FROM_EMAIL are not configured on the server.',
+      code: 'NOT_CONFIGURED',
+    };
   }
 
   return sendGmailEmail(opts);

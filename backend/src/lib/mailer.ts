@@ -13,6 +13,7 @@ import {
   type EmailSendResult as SendMailResult,
 } from '../services/emailService';
 import { env, CLUB } from '../config/env';
+import { isResendConfigured, getResendFromEmail } from '../services/email/resend';
 import { safeString } from '../utils/safe';
 
 export {
@@ -96,16 +97,27 @@ export async function sendBulkEventRegistrationEmails(opts: {
 
 /** Public config status safe to return to client/admin UI */
 export function getEmailConfigStatus() {
-  const configured = isGmailConfigured();
+  const gmail = isGmailConfigured();
+  // `isResendConfigured()` is false for the @resend.dev sandbox sender, which
+  // can only deliver to the account owner — so it is never a usable provider.
+  const resendUsable = isResendConfigured();
+  const provider = resendUsable ? 'resend' : gmail ? 'gmail' : 'none';
+  const resendFrom = getResendFromEmail();
+
   return {
-    configured,
-    provider: env.resendApiKey ? 'resend' : configured ? 'gmail' : 'none',
+    configured: resendUsable || gmail,
+    /** Effective provider used by the dispatcher (auto: Resend → Gmail fallback). */
+    provider,
     hasApiKey: Boolean(env.resendApiKey),
     hasUser: Boolean(env.gmail.user),
-    hasFromEmail: Boolean(env.gmail.user),
+    hasFromEmail: Boolean(resendFrom || env.gmail.user),
     hasAppPassword: Boolean(env.gmail.appPassword),
+    /** Resend is usable only with an API key AND a non-sandbox sender. */
+    resendSenderConfigured: resendUsable,
+    resendFromEmail: resendFrom || '',
+    gmailAvailable: gmail,
     adminEmail: env.contactRecipientEmail || env.siteEmail,
-    fromEmail: env.gmail.user || '',
+    fromEmail: provider === 'resend' ? resendFrom : env.gmail.user || '',
   };
 }
 

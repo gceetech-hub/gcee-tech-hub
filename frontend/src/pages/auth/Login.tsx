@@ -5,10 +5,10 @@ import { LogIn, Eye, EyeOff, GraduationCap, Mail } from 'lucide-react';
 import { Logo } from '../../components/ui/Logo';
 import { ButtonSpinner } from '../../components/ui/Spinner';
 import { useAuth, getErrorMessage } from '../../context/AuthContext';
-import { api, showApiError } from '../../lib/api';
+import { showApiError } from '../../lib/api';
 
 export default function Login() {
-  const { loginStudent, sendOtp } = useAuth();
+  const { loginStudent, sendOtp, verifyOtp } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const redirect = params.get('redirect') || '/dashboard';
@@ -68,11 +68,12 @@ export default function Login() {
     }
     setOtpBusy(true);
     try {
-      await api.post('/auth/verify-otp', { email, otp });
-      toast.success('Email verified! Now you can log in.');
+      await verifyOtp(email, otp);
+      toast.success('Email verified! Welcome to GCEE Tech Hub!');
       setNeedsVerification(false);
       setOtpSent(false);
       setOtp('');
+      navigate(redirect);
     } catch (err) {
       showApiError(err);
     } finally {
