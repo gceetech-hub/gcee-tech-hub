@@ -1,0 +1,148 @@
+import dotenv from 'dotenv';
+import dns from 'node:dns';
+import fs from 'node:fs';
+import path from 'node:path';
+
+dotenv.config();
+
+// Robust environment loading across root, backend, or nested directories
+for (const candidate of [
+  path.resolve(process.cwd(), '.env'),
+  path.resolve(process.cwd(), '.env.local'),
+  path.resolve(process.cwd(), 'backend', '.env'),
+  path.resolve(process.cwd(), 'backend', '.env.local'),
+  path.resolve(__dirname, '..', '..', '.env'),
+  path.resolve(__dirname, '..', '..', '.env.local'),
+  path.resolve(__dirname, '..', '..', '..', '.env'),
+  path.resolve(__dirname, '..', '..', '..', '.env.local'),
+]) {
+  if (fs.existsSync(candidate)) {
+    dotenv.config({ path: candidate, override: true });
+  }
+}
+
+// Workaround for environments whose system DNS server refuses SRV queries
+// (Node's c-ares resolver gets ECONNREFUSED -> Mongo "querySrv ECONNREFUSED").
+// Set FORCE_DNS to a comma-separated list of working nameservers (e.g. 8.8.8.8).
+// Left unset in production (Vercel) so the platform resolver is used.
+const forceDns = (process.env.FORCE_DNS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+if (forceDns.length > 0) {
+  try {
+    dns.setServers(forceDns);
+    console.log(`[env] FORCE_DNS set: ${forceDns.join(', ')}`);
+  } catch (err: any) {
+    console.warn('[env] Failed to apply FORCE_DNS:', err.message);
+  }
+}
+
+/**
+ * The ONE canonical production URL for the public-facing GDGoC GCEE site.
+ * Used as the final fallback when no environment variable overrides it.
+ * All verification links, QR codes, and email buttons are built
+ * from this URL — it must always point to the official production deployment.
+ */
+const CANONICAL_PRODUCTION_URL = 'https://gcee-tech-hub.vercel.app';
+
+/**
+ * Get the public canonical URL of the application.
+ *
+ * Priority (highest → lowest):
+ *   1. PUBLIC_APP_URL  — explicit override, takes precedence over everything
+ *   2. NEXT_PUBLIC_APP_URL / VITE_APP_URL — framework-specific explicit vars
+ *   3. APP_URL / CLIENT_URL — generic explicit vars
+ *   4. VERCEL_PROJECT_PRODUCTION_URL / VERCEL_URL — Vercel system-injected vars
+ *   5. Hard-coded CANONICAL_PRODUCTION_URL when NODE_ENV=production or VERCEL=1
+ *
+ * In production / Vercel, never returns localhost so emails always have valid links.
+ */
+export function getPublicAppUrl(): string {
+  const candidates = [
+    // Highest priority: explicit canonical override (set this in Vercel dashboard)
+    process.env.PUBLIC_APP_URL,
+    // Framework-specific explicit vars
+    process.env.NEXT_PUBLIC_APP_URL,
+    process.env.VITE_APP_URL,
+    // Generic explicit vars
+    process.env.APP_URL,
+    process.env.CLIENT_URL,
+    // Vercel system-injected vars
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '',
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '',
+  ];
+
+  for (let c of candidates) {
+    if (c && typeof c === 'string' && c.trim() && !c.includes('localhost') && !c.includes('127.0.0.1')) {
+      c = c.replace('gdgoc-gcee-clubs.vercel.app', 'gcee-tech-hub.vercel.app');
+      c = c.replace('gdgoc-gcee.vercel.app', 'gcee-tech-hub.vercel.app');
+      return c.trim().replace(/\/+$/, '');
+    }
+  }
+
+  // When running in production or on Vercel, default to the official production URL
+  if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+    return CANONICAL_PRODUCTION_URL;
+  }
+
+  // Local development fallback
+  const devCandidate = process.env.APP_URL || process.env.CLIENT_URL || 'http://localhost:5173';
+  return devCandidate.replace('gdgoc-gcee-clubs.vercel.app', 'gcee-tech-hub.vercel.app').replace('gdgoc-gcee.vercel.app', 'gcee-tech-hub.vercel.app').trim().replace(/\/+$/, '');
+}
+
+
+
+/**
+ * The ONE canonical registration link used by the REGISTER NOW button in every
+ * event/announcement email. Always an absolute HTTPS URL so it works from Gmail.
+ * Event-specific registrationLink fields are intentionally ignored for emails;
+ * the button always opens the official event page below.
+ */
+export const EMAIL_REGISTRATION_URL = 'https://gcee-tech-hub.vercel.app/events/EV-2026-0001';
+
+/**
+ * The ONE official email address of the website.
+ * Used as the sender/from/reply-to for every website email and displayed
+ * anywhere the site shows a contact email. Override with SITE_EMAIL.
+ */
+export const SITE_EMAIL = (process.env.SITE_EMAIL || 'gceetech@gmail.com').trim().toLowerCase();
+
+export const env = {
+  nodeEnv: process.env.NODE_ENV || 'development',
+  isProd: process.env.NODE_ENV === 'production',
+  port: parseInt(process.env.PORT || '5000', 10),
+  // No localhost fallback on purpose: the app must use the configured Atlas URI
+  // (or start in degraded mode and report the missing configuration clearly).
+  mongodbUri: process.env.MONGODB_URI || '',
+  jwtSecret: process.env.JWT_SECRET || 'dev-insecure-secret-change-me',
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  appUrl: getPublicAppUrl(),
+  clientUrl: getPublicAppUrl(),
+  cookieSecure: process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production',
+  siteEmail: SITE_EMAIL,
+  adminEmail: process.env.ADMIN_EMAIL || 'admin@gceetechhub.in',
+  adminPassword: process.env.ADMIN_PASSWORD || 'Admin@123',
+  adminName: process.env.ADMIN_NAME || 'GCEE Tech Hub Admin',
+  gmail: {
+    user: (process.env.GMAIL_USER || SITE_EMAIL).trim().toLowerCase(),
+    appPassword: (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, ''),
+  },
+  resendApiKey: process.env.RESEND_API_KEY || '',
+  resendFromEmail: (process.env.RESEND_FROM_EMAIL || SITE_EMAIL).trim().toLowerCase(),
+  resendFromName: process.env.RESEND_FROM_NAME || 'GCEE Tech Hub',
+  // Where Contact Us (Resend) notifications are delivered.
+  contactRecipientEmail: (process.env.CONTACT_RECIPIENT_EMAIL || SITE_EMAIL).trim().toLowerCase(),
+  googleFormWebhookSecret: process.env.GOOGLE_FORM_WEBHOOK_SECRET || '',
+  emailTestSecret: process.env.EMAIL_TEST_SECRET || '',
+};
+
+export const CLUB = {
+  name: 'GCEE Tech Hub',
+  fullName: 'GCEE Tech Hub — Government College of Engineering, Erode',
+  shortName: 'GCEE Tech Hub',
+  organization: 'GCEE Tech Hub',
+  institution: 'Government College of Engineering, Erode',
+  timezone: 'Asia/Kolkata',
+  websiteName: 'GCEE Tech Hub',
+};

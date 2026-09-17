@@ -1,0 +1,358 @@
+import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+import { Plus, Pencil, Trash2, UsersRound } from 'lucide-react';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { PageLoader } from '../../components/ui/Spinner';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { Modal } from '../../components/ui/Modal';
+import { ButtonSpinner } from '../../components/ui/Spinner';
+import { api, getFieldErrors, getErrorMessage, showApiError } from '../../lib/api';
+import { TEAMS, DEPARTMENTS, YEARS, COORDINATOR_RESPONSIBILITIES, getMemberDisplayRole, cn } from '../../lib/utils';
+import type { Member, MemberPayload } from '../../types';
+
+const emptyForm = { 
+  name: '', email: '', phone: '', college: 'Government College of Engineering, Erode', 
+  skills: '', areasOfInterest: '', whyJoin: '',
+  team: 'Community Members', role: 'Coordinator', coordinatorRole: 'Outreach Coordinator', department: '', year: '', 
+  photo: '', github: '', linkedin: '', instagram: '', twitter: '' 
+};
+
+/** Social links are optional; a non-empty value must be a real http(s) URL. */
+const SOCIAL_FIELDS: Array<{ key: 'github' | 'linkedin' | 'instagram' | 'twitter'; label: string; example: string }> = [
+  { key: 'github', label: 'GitHub', example: 'https://github.com/username' },
+  { key: 'linkedin', label: 'LinkedIn', example: 'https://www.linkedin.com/in/username' },
+  { key: 'instagram', label: 'Instagram', example: 'https://www.instagram.com/username' },
+  { key: 'twitter', label: 'Twitter', example: 'https://twitter.com/username' },
+];
+
+function isValidHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value.trim());
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+/** Inline validation error rendered directly below the invalid field. */
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return (
+    <p role="alert" className="mt-1 text-[11px] font-medium text-g-red">
+      {message}
+    </p>
+  );
+}
+
+export default function AdminMembers() {
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState(false);
+  const [editing, setEditing] = useState<Member | null>(null);
+  const [form, setForm] = useState(emptyForm);
+  const [busy, setBusy] = useState(false);
+  // Per-field validation errors from the backend (keyed e.g. `socialLinks.github`).
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const loadMembers = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/admin/members');
+      setMembers(res.data.members);
+    } catch (err) {
+      showApiError(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMembers();
+  }, []);
+
+  const openCreate = () => {
+    setEditing(null);
+    setForm(emptyForm);
+    setFieldErrors({});
+    setModal(true);
+  };
+
+  const openEdit = (m: Member) => {
+    setEditing(m);
+    setForm({
+      name: m.name,
+      email: m.email || '',
+      phone: m.phone || '',
+      college: m.college || 'Government College of Engineering, Erode',
+      skills: m.skills || '',
+      areasOfInterest: m.areasOfInterest || '',
+      whyJoin: m.whyJoin || '',
+      team: m.team,
+      role: m.role || 'Coordinator',
+      coordinatorRole: m.coordinatorRole || 'Outreach Coordinator',
+      department: m.department,
+      year: m.year,
+      photo: m.photo,
+      github: m.socialLinks?.github || '',
+      linkedin: m.socialLinks?.linkedin || '',
+      instagram: m.socialLinks?.instagram || '',
+      twitter: m.socialLinks?.twitter || '',
+    });
+    setFieldErrors({});
+    setModal(true);
+  };
+
+  const handleFile = (file?: File) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setForm((f) => ({ ...f, photo: String(reader.result) }));
+    reader.readAsDataURL(file);
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFieldErrors({});
+    if (!form.name || !form.email || !form.college) {
+      toast.error('Please fill in all required fields (Name, Email, College).');
+      return;
+    }
+    // Optional social URLs: empty is always valid; a non-empty value must be a
+    // real http(s) URL. Invalid values are surfaced per-field below the input.
+    const clientErrors: Record<string, string> = {};
+    for (const { key, label, example } of SOCIAL_FIELDS) {
+      const value = form[key].trim();
+      if (value && !isValidHttpUrl(value)) {
+        clientErrors[`socialLinks.${key}`] = `${label} URL must be a valid URL (e.g. ${example}).`;
+      }
+    }
+    if (Object.keys(clientErrors).length > 0) {
+      setFieldErrors(clientErrors);
+      toast.error('Validation failed. Please check the highlighted fields.');
+      return;
+    }
+    setBusy(true);
+    const payload: MemberPayload = {
+      name: form.name,
+      email: form.email,
+      phone: form.phone,
+      college: form.college,
+      skills: form.skills,
+      areasOfInterest: form.areasOfInterest,
+      whyJoin: form.whyJoin,
+      team: form.team,
+      role: form.role,
+      coordinatorRole: form.role === 'Coordinator' ? form.coordinatorRole : '',
+      department: form.department,
+      year: form.year,
+      photo: form.photo,
+      socialLinks: { github: form.github.trim(), linkedin: form.linkedin.trim(), instagram: form.instagram.trim(), twitter: form.twitter.trim() },
+    };
+    try {
+      const res = editing
+        ? await api.put(`/admin/members/${editing._id}`, payload)
+        : await api.post('/admin/members', payload);
+      toast.success(res.data.message);
+      setModal(false);
+      loadMembers();
+    } catch (err) {
+      // Render backend field errors beside the exact invalid field.
+      const errors = getFieldErrors(err);
+      if (Object.keys(errors).length > 0) {
+        setFieldErrors(errors);
+      }
+      showApiError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (id: string, name: string) => {
+    if (!window.confirm(`Remove member "${name}"?`)) return;
+    try {
+      const res = await api.delete(`/admin/members/${id}`);
+      toast.success(res.data.message);
+      loadMembers();
+    } catch (err) {
+      showApiError(err);
+    }
+  };
+
+  const grouped = TEAMS.map((t) => ({ team: t, members: members.filter((m) => m.team === t) })).filter((g) => g.members.length > 0);
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Members"
+        subtitle={`${members.length} team members`}
+        actions={
+          <button onClick={openCreate} className="btn-primary">
+            <Plus className="h-4 w-4" /> Add member
+          </button>
+        }
+      />
+
+      {loading ? (
+        <PageLoader label="Loading members…" />
+      ) : grouped.length === 0 ? (
+        <EmptyState
+          icon={<UsersRound className="h-7 w-7" />}
+          title="No members yet"
+          action={<button onClick={openCreate} className="btn-primary"><Plus className="h-4 w-4" /> Add member</button>}
+        />
+      ) : (
+        <div className="space-y-8">
+          {grouped.map((g) => (
+            <div key={g.team}>
+              <h2 className="mb-3 font-display text-base font-bold text-navy-900">{g.team} <span className="text-sm font-normal text-ink-muted">({g.members.length})</span></h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {g.members.map((m) => (
+                  <div key={m._id} className="card group flex items-center gap-3 p-4">
+                    <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl">
+                      {m.photo ? (
+                        <img src={m.photo} alt={m.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-g-blue to-g-green font-bold text-white">
+                          {m.name.charAt(0)}
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-navy-900">{m.name}</p>
+                      <p className="truncate text-xs font-semibold text-g-blue">{getMemberDisplayRole(m)}</p>
+                      <p className="truncate text-[11px] text-ink-faint">{m.department || '—'}</p>
+                    </div>
+                    <div className="flex shrink-0 flex-col gap-1 opacity-60 transition-opacity group-hover:opacity-100">
+                      <button onClick={() => openEdit(m)} className="rounded-lg p-1.5 text-ink-soft hover:bg-g-blue/10 hover:text-g-blue"><Pencil className="h-3.5 w-3.5" /></button>
+                      <button onClick={() => remove(m._id, m.name)} className="rounded-lg p-1.5 text-ink-soft hover:bg-g-red/10 hover:text-g-red"><Trash2 className="h-3.5 w-3.5" /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Member Create/Edit Modal */}
+      <Modal open={modal} onClose={() => setModal(false)} title={editing ? 'Edit member' : 'Add member'}>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="label">Name <span className="text-g-red">*</span></label>
+              <input aria-invalid={!!fieldErrors.name} className={cn('input', fieldErrors.name && 'border-g-red')} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+              <FieldError message={fieldErrors.name} />
+            </div>
+            <div>
+              <label className="label">Email <span className="text-g-red">*</span></label>
+              <input type="email" aria-invalid={!!fieldErrors.email} className={cn('input', fieldErrors.email && 'border-g-red')} value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+              <FieldError message={fieldErrors.email} />
+            </div>
+            <div>
+              <label className="label">Phone</label>
+              <input type="tel" className="input" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+            </div>
+          </div>
+          <div>
+            <label className="label">College <span className="text-g-red">*</span></label>
+            <input className="input" value={form.college} onChange={(e) => setForm((f) => ({ ...f, college: e.target.value }))} />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="label">Team</label>
+              <select className="input" value={form.team} onChange={(e) => setForm((f) => ({ ...f, team: e.target.value }))}>
+                {TEAMS.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Main Role</label>
+              <select className="input" value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}>
+                <option value="Organizer">Organizer</option>
+                <option value="Co-Organizer">Co-Organizer</option>
+                <option value="Coordinator">Coordinator</option>
+                <option value="Staff Advisor">Staff Advisor</option>
+                {form.role && !['Organizer', 'Co-Organizer', 'Coordinator', 'Staff Advisor'].includes(form.role) && (
+                  <option value={form.role}>{form.role}</option>
+                )}
+              </select>
+            </div>
+            {form.role === 'Coordinator' && (
+              <div>
+                <label className="label">Coordinator Responsibility</label>
+                <select
+                  className="input"
+                  value={form.coordinatorRole}
+                  onChange={(e) => setForm((f) => ({ ...f, coordinatorRole: e.target.value }))}
+                >
+                  {COORDINATOR_RESPONSIBILITIES.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                  {form.coordinatorRole && !COORDINATOR_RESPONSIBILITIES.includes(form.coordinatorRole as any) && (
+                    <option value={form.coordinatorRole}>{form.coordinatorRole}</option>
+                  )}
+                </select>
+              </div>
+            )}
+            <div>
+              <label className="label">Department</label>
+              <select className="input" value={form.department} onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}>
+                <option value="">Select</option>
+                {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Year</label>
+              <select className="input" value={form.year} onChange={(e) => setForm((f) => ({ ...f, year: e.target.value }))}>
+                <option value="">Select</option>
+                {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="label">Skills</label>
+            <input className="input" value={form.skills} onChange={(e) => setForm((f) => ({ ...f, skills: e.target.value }))} placeholder="e.g. React, Node.js, Python" />
+          </div>
+          <div>
+            <label className="label">Areas of Interest</label>
+            <input className="input" value={form.areasOfInterest} onChange={(e) => setForm((f) => ({ ...f, areasOfInterest: e.target.value }))} placeholder="e.g. Web Dev, AI, Cloud" />
+          </div>
+          <div>
+            <label className="label">Why Join?</label>
+            <textarea className="input resize-y" rows={2} value={form.whyJoin} onChange={(e) => setForm((f) => ({ ...f, whyJoin: e.target.value }))} placeholder="Reason for joining the team..." />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {SOCIAL_FIELDS.map(({ key, label }) => {
+              const errorKey = `socialLinks.${key}`;
+              return (
+                <div key={key}>
+                  <label className="label">{label} URL <span className="text-[10px] font-normal text-ink-faint">(optional)</span></label>
+                  <input
+                    aria-invalid={!!fieldErrors[errorKey]}
+                    className={cn('input', fieldErrors[errorKey] && 'border-g-red')}
+                    value={form[key]}
+                    onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+                    placeholder="https://…"
+                  />
+                  <FieldError message={fieldErrors[errorKey]} />
+                </div>
+              );
+            })}
+          </div>
+          <div>
+            <label className="label">Photo</label>
+            <div className="flex items-center gap-3">
+              <input type="file" accept="image/*" onChange={(e) => handleFile(e.target.files?.[0])} className="text-sm text-ink-muted" />
+              {form.photo && <img src={form.photo} alt="preview" className="h-12 w-12 rounded-lg object-cover" />}
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={() => setModal(false)} className="btn-outline">Cancel</button>
+            <button type="submit" disabled={busy} className="btn-primary">
+              {busy ? <ButtonSpinner /> : null}
+              {busy ? 'Saving…' : editing ? 'Update' : 'Add member'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
+}

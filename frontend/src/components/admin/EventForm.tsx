@@ -1,0 +1,271 @@
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { UploadCloud, AlertTriangle, X, Link2 } from 'lucide-react';
+import { ButtonSpinner } from '../ui/Spinner';
+import { api, getErrorMessage, showApiError } from '../../lib/api';
+import { EVENT_CATEGORIES, formatHumanDate } from '../../lib/utils';
+import type { GEvent } from '../../types';
+
+interface EventFormData {
+  title: string;
+  shortDescription: string;
+  description: string;
+  date: string;
+  time: string;
+  venue: string;
+  speaker: string;
+  speakerBio: string;
+  eventType: string;
+  technologies: string;
+  registrationEnabled: boolean;
+  registrationDeadline: string;
+  registrationLink: string;
+  isInauguration: boolean;
+  status: string;
+  poster: string;
+}
+
+function toForm(event?: GEvent & any): EventFormData {
+  return {
+    title: event?.title || '',
+    shortDescription: event?.shortDescription || '',
+    description: event?.description || '',
+    date: event?.date || '',
+    time: event?.time || '',
+    venue: event?.venue || '',
+    speaker: event?.speaker || '',
+    speakerBio: event?.speakerBio || '',
+    eventType: event?.eventType || event?.category || 'Workshop',
+    technologies: (event?.technologies || []).join(', '),
+    registrationEnabled: event?.registrationEnabled ?? true,
+    registrationDeadline: event?.registrationDeadline || '',
+    registrationLink: event?.registrationLink || '',
+    isInauguration: event?.isInauguration ?? false,
+    status: event?.status || 'UPCOMING',
+    poster: event?.poster || event?.banner || '',
+  };
+}
+
+export function EventForm({ event, onSaved }: { event?: GEvent; onSaved?: () => void }) {
+  const isEdit = Boolean(event);
+  const [form, setForm] = useState<EventFormData>(toForm(event));
+  const [busy, setBusy] = useState(false);
+
+  const update = (key: string, value: any) => setForm((f) => ({ ...f, [key]: value }));
+
+  const handleFile = (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please choose an image file.');
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error('Image must be smaller than 4 MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => update('poster', String(reader.result));
+    reader.readAsDataURL(file);
+  };
+
+  const generateSlug = (title: string) => {
+    return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.title || !form.date || !form.eventType || !form.poster) {
+      toast.error('Please fill all required fields (title, date, type, poster).');
+      return;
+    }
+    setBusy(true);
+    // Canonical API contract — field names match the backend Event model exactly.
+    const payload = {
+      title: form.title.trim(),
+      shortDescription: form.shortDescription,
+      description: form.description,
+      date: form.date,
+      time: form.time,
+      venue: form.venue,
+      speaker: form.speaker,
+      speakerBio: form.speakerBio,
+      category: form.eventType,
+      technologies: form.technologies
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean),
+      registrationEnabled: form.registrationEnabled,
+      registrationDeadline: form.registrationDeadline,
+      registrationLink: form.registrationLink,
+      isInauguration: form.isInauguration,
+      status: form.status,
+      poster: form.poster,
+      slug: generateSlug(form.title),
+    };
+
+    try {
+      const res = isEdit
+        ? await api.put(`/admin/events/${event?.eventId}`, payload)
+        : await api.post('/admin/events', payload);
+      toast.success(res.data.message);
+      onSaved?.();
+      if (!isEdit) {
+        setForm(toForm());
+      }
+    } catch (err) {
+      showApiError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-6">
+      {/* Inauguration warning */}
+      {form.isInauguration && (
+        <div className="flex items-start gap-3 rounded-xl border border-g-yellow/40 bg-g-yellow/10 p-4 text-sm text-yellow-800">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <p className="font-semibold">Inauguration event</p>
+            <p className="mt-0.5">
+              This event will appear in events, the timeline, gallery and attendance records.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="card p-6">
+        <h3 className="mb-5 font-display text-base font-bold text-navy-900">Basic details</h3>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label className="label" htmlFor="ev-title">Event name <span className="text-g-red">*</span></label>
+            <input id="ev-title" className="input" value={form.title} onChange={(e) => update('title', e.target.value)} placeholder="e.g. Web Development Bootcamp" />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label" htmlFor="ev-short">Short description</label>
+            <input id="ev-short" className="input" value={form.shortDescription} onChange={(e) => update('shortDescription', e.target.value)} placeholder="A one-line summary for cards" />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label" htmlFor="ev-desc">Full description</label>
+            <textarea id="ev-desc" rows={5} className="input resize-y" value={form.description} onChange={(e) => update('description', e.target.value)} placeholder="Detailed description of the event…" />
+          </div>
+          <div>
+            <label className="label" htmlFor="ev-date">Date (YYYY-MM-DD) <span className="text-g-red">*</span></label>
+            <input id="ev-date" className="input font-mono" value={form.date} onChange={(e) => update('date', e.target.value)} placeholder="2026-09-20" />
+            {form.date && <p className="mt-1 text-xs text-ink-faint">→ {formatHumanDate(form.date)}</p>}
+          </div>
+          <div>
+            <label className="label" htmlFor="ev-venue">Venue</label>
+            <input id="ev-venue" className="input" value={form.venue} onChange={(e) => update('venue', e.target.value)} placeholder="CS Seminar Hall" />
+          </div>
+          <div>
+            <label className="label" htmlFor="ev-time">Time</label>
+            <input id="ev-time" className="input" value={form.time} onChange={(e) => update('time', e.target.value)} placeholder="e.g. 09:00 AM - 05:00 PM" />
+          </div>
+          <div>
+            <label className="label" htmlFor="ev-cat">Event Type <span className="text-g-red">*</span></label>
+            <select id="ev-cat" className="input" value={form.eventType} onChange={(e) => update('eventType', e.target.value)}>
+              <option value="" disabled>Select event type</option>
+              {EVENT_CATEGORIES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="card p-6">
+        <h3 className="mb-5 font-display text-base font-bold text-navy-900">Speaker &amp; topics</h3>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div>
+            <label className="label" htmlFor="ev-speaker">Speaker</label>
+            <input id="ev-speaker" className="input" value={form.speaker} onChange={(e) => update('speaker', e.target.value)} placeholder="Speaker name" />
+          </div>
+          <div>
+            <label className="label" htmlFor="ev-tech">Technologies (comma separated)</label>
+            <input id="ev-tech" className="input" value={form.technologies} onChange={(e) => update('technologies', e.target.value)} placeholder="React, TypeScript, Tailwind" />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label" htmlFor="ev-speaker-bio">Speaker bio</label>
+            <textarea id="ev-speaker-bio" rows={3} className="input resize-y" value={form.speakerBio} onChange={(e) => update('speakerBio', e.target.value)} placeholder="About the speaker…" />
+          </div>
+        </div>
+      </div>
+
+      <div className="card p-6">
+        <h3 className="mb-5 font-display text-base font-bold text-navy-900">Registration &amp; flags</h3>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div>
+            <label className="label" htmlFor="ev-deadline">Registration deadline (YYYY-MM-DD)</label>
+            <input id="ev-deadline" className="input font-mono" value={form.registrationDeadline} onChange={(e) => update('registrationDeadline', e.target.value)} placeholder="2026-09-18" />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label" htmlFor="ev-reg-link">
+              <span className="flex items-center gap-1.5"><Link2 className="h-3.5 w-3.5" /> Direct Registration Link (for event emails)</span>
+            </label>
+            <input id="ev-reg-link" className="input font-mono text-sm" value={form.registrationLink} onChange={(e) => update('registrationLink', e.target.value)} placeholder="Optional custom registration URL" />
+            <p className="mt-1 text-xs text-ink-faint">Used in the "Register Now" button when sending event announcement emails to students.</p>
+          </div>
+        </div>
+
+        <div className="mt-5 space-y-3">
+          <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-navy-100 p-4 transition hover:bg-navy-50/50">
+            <input type="checkbox" className="h-4 w-4 accent-[#34A853]" checked={form.registrationEnabled} onChange={(e) => update('registrationEnabled', e.target.checked)} />
+            <div>
+              <p className="text-sm font-semibold text-navy-900">Registration enabled</p>
+              <p className="text-xs text-ink-muted">Allow students to register for this event.</p>
+            </div>
+          </label>
+
+          <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-navy-100 p-4 transition hover:bg-navy-50/50">
+            <input type="checkbox" className="h-4 w-4 accent-[#34A853]" checked={form.isInauguration} onChange={(e) => update('isInauguration', e.target.checked)} />
+            <div>
+              <p className="text-sm font-semibold text-navy-900">Inauguration event</p>
+              <p className="text-xs text-ink-muted">Mark as official inauguration event.</p>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div className="card p-6">
+        <h3 className="mb-5 font-display text-base font-bold text-navy-900">Poster <span className="text-g-red">*</span></h3>
+        <div className="flex flex-col items-start gap-4 sm:flex-row">
+          <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-navy-200 p-6 transition hover:border-g-blue hover:bg-g-blue/5 sm:w-auto">
+            <UploadCloud className="h-5 w-5 text-g-blue" />
+            <span className="text-sm font-medium text-navy-900">Upload poster image</span>
+            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
+          </label>
+          {form.poster && (
+            <div className="relative">
+              <img src={form.poster} alt="Poster preview" className="h-28 w-48 rounded-xl object-cover" />
+              <button type="button" onClick={() => update('poster', '')} className="absolute -right-2 -top-2 rounded-full bg-g-red p-1 text-white" aria-label="Remove poster">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {isEdit && (
+        <div className="card p-6">
+          <label className="label" htmlFor="ev-status">Status</label>
+          <select id="ev-status" className="input" value={form.status} onChange={(e) => update('status', e.target.value)}>
+            <option value="UPCOMING">UPCOMING</option>
+            <option value="ONGOING">ONGOING</option>
+            <option value="COMPLETED">COMPLETED</option>
+            <option value="CANCELLED">CANCELLED</option>
+          </select>
+        </div>
+      )}
+
+      <div className="flex items-center justify-end gap-3">
+        <Link to="/admin/events" className="btn-outline">Cancel</Link>
+        <button type="submit" disabled={busy} className="btn-primary !px-6">
+          {busy ? <ButtonSpinner /> : null}
+          {busy ? 'Saving…' : isEdit ? 'Update event' : 'Create event'}
+        </button>
+      </div>
+    </form>
+  );
+}

@@ -1,0 +1,42 @@
+import {
+  LayoutDashboard,
+  CalendarDays,
+  Users,
+  UsersRound,
+  Settings,
+  ClipboardList,
+  Image,
+  Mail,
+  BookOpen,
+} from 'lucide-react';
+import { DashboardShell } from './DashboardShell';
+import { useAuth } from '../../context/AuthContext';
+
+export function AdminLayout() {
+  const { admin, logoutAdmin } = useAuth();
+
+  const navItems = [
+    { label: 'Dashboard', to: '/admin/dashboard', icon: LayoutDashboard, end: true },
+    { label: 'Students', to: '/admin/students', icon: Users },
+    { label: 'Events', to: '/admin/events', icon: CalendarDays },
+    { label: 'Event Registrations', to: '/admin/form-registrations', icon: ClipboardList },
+    { label: 'Resources', to: '/admin/resources', icon: BookOpen },
+    { label: 'Members', to: '/admin/members', icon: UsersRound },
+    { label: 'Gallery', to: '/admin/gallery', icon: Image },
+    { label: 'Settings', to: '/admin/settings', icon: Settings },
+  ];
+
+  const roleLabel = admin?.role && admin.role !== 'superadmin' && admin.role !== 'admin'
+    ? admin.role
+    : 'GCEE Tech Hub Admin';
+
+  return (
+    <DashboardShell
+      navItems={navItems}
+      userLabel={admin?.name || 'Admin'}
+      userSubLabel={roleLabel}
+      logout={logoutAdmin}
+      basePath="/admin"
+    />
+  );
+}
