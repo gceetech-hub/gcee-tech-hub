@@ -11,6 +11,14 @@ import type { Member } from '../../types';
 
 const ACADEMIC_YEARS = ['2026–27', '2025–26'];
 
+// Academic year runs June 1 → May 31 (e.g. "2026–27" = 2026-06-01 → 2027-05-31).
+function academicYearRange(academicYear: string): { start: number; end: number } {
+  const startYear = parseInt(academicYear, 10);
+  const start = new Date(Date.UTC(startYear, 5, 1)).getTime();
+  const end = new Date(Date.UTC(startYear + 1, 4, 31, 23, 59, 59, 999)).getTime();
+  return { start, end };
+}
+
 export default function TeamMembers() {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +49,17 @@ export default function TeamMembers() {
 
   useEffect(() => loadMembers(), [loadMembers]);
 
-  const sortedMembers = sortMembersByRoleHierarchy(members);
+  // Board tenure filter: members with a joinedDate are matched to the selected
+  // academic year window; legacy members without a joinedDate fall under the
+  // current board (the default selection) so they always remain visible.
+  const { start, end } = academicYearRange(academicYear);
+  const visibleMembers = members.filter((m) => {
+    if (!m.joinedDate) return academicYear === '2026–27';
+    const joined = new Date(m.joinedDate).getTime();
+    return joined >= start && joined <= end;
+  });
+
+  const sortedMembers = sortMembersByRoleHierarchy(visibleMembers);
   const hasMembers = sortedMembers.length > 0;
 
   return (

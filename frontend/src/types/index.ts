@@ -167,6 +167,7 @@ export interface Member {
   photo: string;
   order?: number;
   isActive?: boolean;
+  joinedDate?: string | null;
   socialLinks?: {
     github?: string;
     linkedin?: string;

@@ -30,6 +30,7 @@ function serialize(m: any) {
     },
     order: m.order ?? 0,
     isActive: m.isActive !== false,
+    joinedDate: m.joinedDate || null,
   };
 }
 

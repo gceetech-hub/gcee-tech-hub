@@ -82,7 +82,7 @@ async function seed() {
 
   const eventSpec: any[] = [
     {
-      eventId: await nextEventId(),
+      
       title: 'GCEE Tech Hub Inauguration',
       shortDescription: 'Official launch of GCEE Tech Hub at GCEE.',
       description: 'Join us as we officially launch GCEE Tech Hub at Government College of Engineering, Erode. Meet the core team, learn about the roadmap, and be part of the community from day one.',
@@ -114,7 +114,7 @@ async function seed() {
 
   for (let i = 0; i < eligibleDates.length; i++) {
     eventSpec.push({
-      eventId: await nextEventId(),
+      
       title: titles[i],
       shortDescription: `Hands-on ${cats[i].toLowerCase()} session.`,
       description: `A practical ${cats[i].toLowerCase()} covering real-world skills, tooling and best practices. Open to all GCEE Tech Hub members.`,
@@ -135,7 +135,7 @@ async function seed() {
 
   // Upcoming events for the dashboard/homepage
   eventSpec.push({
-    eventId: await nextEventId(),
+    
     title: 'Community Meetup & Tech Talk',
     shortDescription: 'Monthly community catch-up with a short tech talk.',
     description: 'Our monthly meetup — network with peers, discuss latest developer trends and enjoy a short technical talk.',
@@ -153,7 +153,7 @@ async function seed() {
     status: 'UPCOMING',
   });
   eventSpec.push({
-    eventId: await nextEventId(),
+    
     title: 'Android Development Session',
     shortDescription: 'Intro to building Android apps with Kotlin.',
     description: 'A beginner-friendly session on Android development with Kotlin and Jetpack Compose.',
@@ -173,10 +173,18 @@ async function seed() {
 
   const events: any[] = [];
   for (const spec of eventSpec) {
-    let ev = await EventModel.findOne({ eventId: spec.eventId });
-    if (!ev) ev = await EventModel.create(spec);
+    // Dedupe by title so re-seeding never creates duplicate events.
+    let ev: any = await EventModel.findOne({ title: spec.title }).lean();
+    if (!ev) {
+      // Generate the eventId lazily at insert time. Computing it up front
+      // produced EV-2026-0001 for every spec (empty DB at generation time),
+      // so only the first event ever got created. Removing the stale IDs also
+      // guarantees unique sequential eventIds.
+      spec.eventId = await nextEventId();
+      ev = await EventModel.create(spec);
+    }
     events.push(ev);
-    console.log(`[seed] event: ${spec.eventId} — ${spec.title} (${spec.date}) ${spec.isInauguration ? '[INAUGURATION]' : ''}`);
+    console.log(`[seed] event: ${ev.eventId} — ${spec.title} (${spec.date}) ${spec.isInauguration ? '[INAUGURATION]' : ''}`);
   }
 
   const inauguration = events[0];
